@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>WebConsole</title>
+    <meta content="2019.06" name="description"/>
+    <meta content="russ" name="author"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Access-Control-Allow-Origin" content="*">
+    <link href="favicon.ico" mce_href="favicon.ico" rel="icon" type="image/x-icon"/>
+    <link href="favicon.ico" mce_href="favicon.ico" rel="shortcut icon" type="image/x-icon"/>
+    <link href="favicon.png" rel="apple-touch-icon"/>
+    <link href="assets/plugins/jquery-ui/themes/base/minified/jquery-ui.min.css" rel="stylesheet"/>
+    <link href="assets/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="assets/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet"/>
+    <link href="assets/css/animate.min.css" rel="stylesheet"/>
+    <link href="assets/css/style.min.css" rel="stylesheet"/>
+    <link href="assets/css/style-responsive.min.css" rel="stylesheet"/>
+    <link href="assets/css/theme/default.css" rel="stylesheet" id="theme"/>
+</head>
+<body>
+<div class="login-cover">
+    <div class="login-cover-image">
+        <img src="images/bg2.jpg" data-id="login-cover-image" alt="" style="width:100%;height:100%;"/>
+    </div>
+</div>
+<!-- begin #page-container -->
+<div id="page-container" class="fade" style="height:80%;">
+    <div class="login login-v2" data-pageload-addclass="animated flipInX"
+         style="margin-top:80px;margin-bottom:0px;width:100%;height:100%;text-align:center;padding-bottom: 10px;">
+        <div class="login-header" style="text-align:center;font-size:32px;color:#00acac;margin-top:10px;">
+            <img src="images/favicon.png" style="width:64px;height:40px;margin-right:8px;"/>
+            <span> SSH-WebConsole </span>
+        </div>
+        <div class="m-b-1">
+            <!--<input type="text" class="input-lg" placeholder="响应信息" autocomplete="off"
+                   id="response" name="response"
+                   style="font-size:18px;color:lime;text-align:left;width:100%;height:60%;min-height:640px;margin-top:10px;background-color: #000000;border: none;"/>-->
+            <textarea placeholder="响应信息" autocomplete="off"
+                      id="response" name="response"
+                      style="font-size:18px;color:lime;text-align:left;width:100%;height:500px;background-color:#000000;border: none;"
+                      readonly="readonly"
+            ></textarea>
+        </div>
+        <div class="m-b-10">
+            <input type="text" class="input-lg" placeholder="发送命令" autocomplete="off"
+                   id="input-request" name="input-request"
+                   style="font-size:18px;color:lime;text-align:left;width:100%;background-color: #000000;border: none;"/>
+        </div>
+        <div class="m-b-10">
+            <a id="btnSend" data-toggle="modal" class="btn btn-success m-r-5"
+               style="width:200px;height:40px;font-size:16px;color:#FFE;margin-top:10px;">发送</a>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-without-animation" style="display:none;">
+    <div class="modal-dialog" style="width:300px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true" id="dialogClose">×</button>
+                <h4 class="modal-title">提示</h4>
+            </div>
+            <div class="modal-body">
+                <p id="message"></p>
+            </div>
+            <div class="modal-footer">
+                <a href="javascript:;" class="btn btn-sm btn-white" data-dismiss="modal" id="close">Close</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="assets/plugins/jquery/jquery-1.9.1.min.js"></script>
+<script src="assets/plugins/jquery/jquery-migrate-1.1.0.min.js"></script>
+<script src="assets/plugins/jquery-ui/ui/minified/jquery-ui.min.js"></script>
+<script src="assets/plugins/bootstrap/js/bootstrap.min.js"></script>
+<script src="assets/js/apps.min.js"></script>
+<script src="js/mqtt/mqtt.min.js"></script>
+<script src="js/basic.js"></script>
+<script src="js/config.js"></script>
+<script src="js/mqtt-client.js"></script>
+<script>
+    var responseTextArea = null;
+
+    $(document).ready(function () {
+        //init controls
+        App.init();
+        onResize();
+        init();
+    });
+
+    $(window).resize(onResize);
+
+    function onResize() {
+        var target = $(window).height() * 0.75;
+        $('#response').height(target);
+        //console.log("target = "+target)
+    }
+
+    function init() {
+        $("#input-request").keypress(function (e) {
+            if (e.keyCode == 13)
+                $("#btnSend").trigger('click');
+        });
+        $("#btnSend").click(btnSendClickHandle);
+        $("#input-request").focus().select();
+        mqtt_init();
+    }
+
+    function mqtt_init() {
+        startMqtt(mqttUrl, localTopic, mqttMsgHandle, mqttSendCallback);
+    }
+
+    function btnSendClickHandle() {
+        var cmd = $("#input-request").val().trim();
+        if (!cmd || cmd.length == 0) {
+            append("");
+            return;
+        }
+        var msg = {"cmd": "DO_CMD", "data": {"cmd": cmd}}
+        publish(targetTopic, JSON.stringify(msg));
+        $("#input-request").val("")
+        append("# " + cmd)
+    }
+
+    function mqttMsgHandle(topic, message) {
+        //append('收到来自'+topic+'的消息: '+message.toString());
+        var ori_msg = message.toString();
+        var msg = JSON.parse(ori_msg)
+        if (msg.cmd == "LOG") {
+            append(msg.data.msg, true)
+        }else if(msg.cmd == "EP_ON"){
+            append(msg.data.msg, true)
+        } else if(msg.cmd == "EP_OFF"){
+            append(msg.data.msg, true)
+        } else if(msg.cmd == "EP_STATUS"){
+            append(msg.data.msg, true)
+            append(JSON.stringify(msg.data.hostStatus), true)
+        } else if(msg.cmd == "HEARTBEAT"){
+            append(msg.data.msg, true)
+        } else if(msg.data.msg){
+            append(msg.data.msg, true)
+        } else{
+            append(ori_msg, true)
+        }
+    }
+
+    function mqttSendCallback(error) {
+        if(error)
+            append(error);
+        // else
+        //     append('消息发布成功')
+    }
+
+    function append(info, notime) {
+        if (!responseTextArea)
+            responseTextArea = document.getElementById("response");
+        if(!info || info.length == 0){
+            responseTextArea.value += " \n";
+            responseTextArea.scrollTop = responseTextArea.scrollHeight;
+            return;
+        }
+        if(!notime){
+            responseTextArea.value += (new Date().format(DATE_FMT)) + " "
+        }
+        responseTextArea.value += info;
+        if(!info.endWith("\n")){
+            responseTextArea.value += "\n";
+        }
+        responseTextArea.scrollTop = responseTextArea.scrollHeight;
+    }
+
+</script>
+
+</body>
+</html>
